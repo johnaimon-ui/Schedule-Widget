@@ -1,0 +1,251 @@
+/* ###############################################################
+   WEEKLY SCHEDULE WIDGET for Scriptable (iOS)
+   ---------------------------------------------------------------
+   Inspired by the "Sticky Note" widget script in the Scriptable app
+   (original sticky note widget by @morinagapltynm).
+   This version keeps the same simple, colorful note look, but shows
+   your class schedule instead of a plain text note.
+
+   WHAT IT DOES
+   - HOME SCREEN WIDGET: shows ONLY today's classes, based on your
+     iPhone's date and time. On Monday it shows Monday, on Tuesday it
+     shows Tuesday, and so on. It refreshes around midnight.
+   - TAP THE WIDGET: opens a scrollable Monday to Saturday list inside
+     Scriptable. Today is listed first and highlighted.
+
+   HOW TO SET IT UP (first time)
+   1. Install "Scriptable" from the App Store (free).
+   2. Open Scriptable, tap the "+" button to create a new script.
+   3. Paste this whole file, then name it (example: "Schedule").
+   4. Tap the play button to preview the scrollable weekly list.
+   5. Go to your Home Screen, long-press an empty area, tap "+",
+      search for "Scriptable", and add the MEDIUM size widget.
+   6. Long-press the new widget, tap "Edit Widget", then set:
+        Script    -> the script name you chose (example: "Schedule")
+        Parameter -> optional color (see below)
+
+   HOW TO CHANGE THE COLOR (optional)
+   Type one of these in the widget's "Parameter" field:
+     green, red, yellow, blue, white, black, or a hex code like #FFAA00
+   Leave it empty to use the default (blue).
+
+   HOW TO USE YOUR OWN SCHEDULE
+   Scroll down to the "SCHEDULE DATA" section below and edit the
+   entries. Each class has three parts:
+     time    -> when the class happens (any text you like)
+     subject -> the class name
+     room    -> room number, lab, or "Online"
+   Keep the quotes and commas as they are. To add a class, copy one
+   line (the { ... } part) and paste it as a new line. To remove one,
+   delete its line. Days with no classes can be left as [] (empty).
+
+   GOOD TO KNOW
+   - iOS widgets cannot scroll. That is why tapping the widget opens
+     the scrollable list in the app.
+   - iOS decides exactly when a widget refreshes, so the day change
+     can be a little late after midnight.
+   - This script only runs inside Scriptable on iPhone/iPad. It will
+     not run in VS Code, Node.js, or a browser.
+   =============================================================== */
+
+
+/* ---------------------------------------------------------------
+   SCHEDULE DATA  (edit this part to match your own schedule)
+   Day keys: mon, tue, wed, thu, fri, sat
+   --------------------------------------------------------------- */
+const schedule = {
+  mon: [
+    { time: "7:30 - 9:00", subject: "Christian Formation", room: "Room 311" },
+    { time: "9:00 - 10:30", subject: "Environmental Science", room: "Room 308" },
+    { time: "5:00 - 8:00", subject: "Social Issues and Professional Practice", room: "Online" }
+  ],
+  tue: [
+    { time: "3:00 - 4:00", subject: "Elective 1 Lec", room: "GD and DACTY Lab" },
+    { time: "4:30 - 7:30", subject: "Elective 1 Lab", room: "CL10" }
+  ],
+  wed: [
+    { time: "8:00 - 10:00", subject: "HCI 2", room: "Online" },
+    { time: "2:00 - 4:00", subject: "Web Systems and Technologies 1 Lec Lab", room: "Online" }
+  ],
+  thu: [
+    { time: "7:30 - 9:00", subject: "Christian Formation", room: "Room 311" },
+    { time: "9:00 - 10:30", subject: "Environmental Science", room: "Online" }
+  ],
+  fri: [
+    { time: "7:00 - 10:00", subject: "Web Systems and Technologies 1 Lec Lab", room: "Room CL8" },
+    { time: "3:00 - 4:00", subject: "Elective 1 Lec", room: "GD and DACTY Lab" },
+    { time: "5:00 - 7:00", subject: "Networking 1", room: "Room 312" }
+  ],
+  sat: [
+    { time: "7:00 - 10:00", subject: "Networking 1", room: "Room CL5" },
+    { time: "4:30 - 7:30", subject: "HCI 2", room: "Room CL6" }
+  ]
+}
+
+
+/* ---------------------------------------------------------------
+   DAY SETTINGS (you normally don't need to change these)
+   --------------------------------------------------------------- */
+
+// Days shown in the scrollable list (Monday to Saturday)
+const weekDays = ["mon", "tue", "wed", "thu", "fri", "sat"]
+
+// JavaScript counts days from Sunday = 0, so this list matches that order
+const dayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+
+// Full day names used for titles
+const dayNames = {
+  sun: "Sunday", mon: "Monday", tue: "Tuesday", wed: "Wednesday",
+  thu: "Thursday", fri: "Friday", sat: "Saturday"
+}
+
+
+/* ---------------------------------------------------------------
+   COLOR SETTINGS
+   The widget parameter (set in "Edit Widget") picks the note color.
+   --------------------------------------------------------------- */
+
+// Available note colors (hex codes without the #)
+const palette = {
+  green: "C5EA9C",
+  yellow: "FFFFA1",
+  blue: "B1DAE4",
+  red: "FFC2E4",
+  white: "F6F6F7",
+  black: "191919"
+}
+
+// Read the widget parameter (empty if you didn't type anything)
+let conf = (args.widgetParameter == null) ? "" : String(args.widgetParameter).toLowerCase()
+
+// Defaults: blue background with black text
+let bgColor = new Color(palette.blue)
+let noteColor = Color.black()
+
+// If the parameter contains a color name, use that color
+for (let name in palette) {
+  if (conf.includes(name)) {
+    bgColor = new Color(palette[name])
+    // Use white text on the black background so it stays readable
+    if (name === "black") noteColor = Color.white()
+  }
+}
+
+// Custom hex color, example: #FFAA00
+if (conf.includes("#")) {
+  let p = conf.indexOf("#")
+  bgColor = new Color(conf.slice(p + 1, p + 7))
+}
+
+
+/* ---------------------------------------------------------------
+   TODAY (taken from your iPhone's clock)
+   --------------------------------------------------------------- */
+let now = new Date()
+let todayKey = dayKeys[now.getDay()]
+
+
+/* ---------------------------------------------------------------
+   HOME SCREEN WIDGET
+   Shows only today's classes.
+   --------------------------------------------------------------- */
+function buildWidget() {
+  let w = new ListWidget()
+  w.backgroundColor = bgColor
+  w.setPadding(10, 12, 10, 12)
+
+  // Ask iOS to refresh just after midnight so the day changes by itself
+  let midnight = new Date(now)
+  midnight.setHours(24, 0, 30, 0)
+  w.refreshAfterDate = midnight
+
+  // Tapping the widget opens this script (the scrollable weekly list)
+  w.url = URLScheme.forRunningScript()
+
+  // Title, example: "TUESDAY • IT"  (change "IT" to your course if you like)
+  let title = w.addText(dayNames[todayKey].toUpperCase() + " • IT")
+  title.font = Font.boldMonospacedSystemFont(13)
+  title.textColor = noteColor
+  w.addSpacer(4)
+
+  let classes = schedule[todayKey]
+
+  if (!classes || classes.length === 0) {
+    // No classes today (for example, Sunday)
+    let none = w.addText("No classes 🎉")
+    none.font = Font.mediumMonospacedSystemFont(12)
+    none.textColor = noteColor
+  } else {
+    // One line per class: time, subject, and room
+    for (let c of classes) {
+      let row = w.addText("• " + c.time + "  " + c.subject + " (" + c.room + ")")
+      row.font = Font.mediumMonospacedSystemFont(10)
+      row.textColor = noteColor
+      row.minimumScaleFactor = 0.6 // shrink long subjects to fit
+      w.addSpacer(2)
+    }
+  }
+  return w
+}
+
+
+/* ---------------------------------------------------------------
+   SCROLLABLE WEEKLY VIEW (opens inside the Scriptable app)
+   Lists Monday to Saturday, with today first and highlighted.
+   --------------------------------------------------------------- */
+async function showTable() {
+  let table = new UITable()
+  table.showSeparators = true
+
+  // Put today first, then continue through the rest of the week
+  let order = weekDays.slice()
+  if (order.includes(todayKey)) {
+    let i = order.indexOf(todayKey)
+    order = order.slice(i).concat(order.slice(0, i))
+  }
+
+  // Header at the top of the list
+  let header = new UITableRow()
+  header.isHeader = true
+  header.addText("WEEKLY SCHEDULE", "Information Technology")
+  table.addRow(header)
+
+  for (let key of order) {
+    let isToday = key === todayKey
+
+    // Day title row (today uses your chosen note color)
+    let dayRow = new UITableRow()
+    dayRow.backgroundColor = isToday ? bgColor : new Color("999999", 0.15)
+    let label = dayNames[key].toUpperCase() + (isToday ? "  •  TODAY" : "")
+    let cell = dayRow.addText(label)
+    cell.titleColor = isToday ? noteColor : Color.dynamic(Color.black(), Color.white())
+    cell.titleFont = Font.boldMonospacedSystemFont(16)
+    table.addRow(dayRow)
+
+    // One row per class under that day
+    for (let c of schedule[key]) {
+      let r = new UITableRow()
+      r.height = 60
+      let t = r.addText(c.subject, c.time + "  •  " + c.room)
+      t.titleFont = Font.mediumSystemFont(15)
+      t.subtitleFont = Font.systemFont(12)
+      t.subtitleColor = Color.gray()
+      table.addRow(r)
+    }
+  }
+
+  await table.present(false)
+}
+
+
+/* ---------------------------------------------------------------
+   RUN
+   Inside a widget -> show today's classes.
+   Opened in the app (or by tapping the widget) -> show the weekly list.
+   --------------------------------------------------------------- */
+if (config.runsInWidget) {
+  Script.setWidget(buildWidget())
+} else {
+  await showTable()
+}
+Script.complete()
